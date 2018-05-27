@@ -14,6 +14,8 @@ namespace SillyUser
     {
         private Outlook.Application app;
         private Outlook.NameSpace ns;        
+        private int  sleeptime = 5000;
+
         public Form1()
         {
             app = new Outlook.Application();
@@ -102,7 +104,7 @@ namespace SillyUser
                 }
                 finally
                 {
-                    var sleeptime = 5000;
+                    //var sleeptime = 5000;
                     Trace.TraceInformation($"Sleeping for {sleeptime}");
                     Thread.Sleep(sleeptime);
                 }
@@ -111,7 +113,32 @@ namespace SillyUser
 
         private void richTextBox1_TextChanged(object sender, EventArgs e)
         {
+            richTextBox1.SelectionStart = richTextBox1.Text.Length;
+            // scroll it automatically
+            richTextBox1.ScrollToCaret();
+        }
 
+        private void textBox1_Validating(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+
+            try
+            {
+                var t=Convert.ToInt16(textBox1.Text);
+                if (t > 0)
+                {
+                    sleeptime = t;
+                    errorProvider1.Clear();
+                    errorProvider1.SetError(textBox1, "");
+                }
+                else
+                {
+                    errorProvider1.SetError(textBox1, "Just unsigned integers please");
+                }
+            }
+            catch 
+            {
+                errorProvider1.SetError(textBox1,"Just unsigned integers please");
+            }
         }
     }
 
