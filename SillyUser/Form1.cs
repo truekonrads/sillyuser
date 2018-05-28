@@ -3,34 +3,65 @@ using System.Collections.Generic;
 using System.Text;
 using System.IO;
 using System.Windows.Forms;
-using Outlook = Microsoft.Office.Interop.Outlook;
+using Outlook = NetOffice.OutlookApi;
 using System.Diagnostics;
 using System.Threading;
-
+using NetOffice.OutlookApi.Enums;
 namespace SillyUser
 {
 
     public partial class Form1 : Form
     {
         private Outlook.Application app;
-        private Outlook.NameSpace ns;        
+        private Outlook._NameSpace ns;        
         private int  sleeptime = 5000;
+        Outlook.MAPIFolder currentFolder = null;
+
+        private List<Outlook.MAPIFolder> GetInboxes()
+        {
+            var l = new List<Outlook.MAPIFolder>();
+            foreach (Outlook.Store store in ns.Stores)
+            {
+                l.Add(store.GetDefaultFolder(OlDefaultFolders.olFolderInbox));
+            }
+            return l;
+        }
+
+        private class Item
+        {
+            
+            public Outlook.MAPIFolder Value;
+            public Item(Outlook.MAPIFolder value)
+            {
+                Value = value;
+            }
+            public override string ToString()
+            {
+                // Generates the text shown in the combo box
+                return Value.FolderPath;
+            }
+        }
 
         public Form1()
         {
-            app = new Outlook.Application();
-            ns = app.Session;
+
             InitializeComponent();
             var textboxglue = new TextBoxStreamWriter(this.richTextBox1,this);            
             var t = new TextWriterTraceListener(textboxglue) { TraceOutputOptions = TraceOptions.DateTime };
+            
+
+
             Trace.Listeners.Add(t);
             Trace.AutoFlush = true;
+            app = new Outlook.Application();
+            ns = app.Session;
+            var inboxes = GetInboxes();
+            
+            foreach (var i in inboxes)
+                { comboBox1.Items.Add(new Item(i)); }
+            comboBox1.SelectedItem = comboBox1.Items[0];
             Trace.TraceInformation("Form1 initialised");
-            new Thread(() =>
-            {
-                Thread.CurrentThread.IsBackground = true;
-                StartBeingSilly();
-            }).Start();
+
         }
         private List<string> FindUrlsInText(string text){
             List<string> links = new List<string>();
@@ -46,9 +77,11 @@ namespace SillyUser
         }
         private void ProcessOneItem(Outlook.MailItem item)
         {
+
             Trace.TraceInformation($"Processing email from {item.SenderEmailAddress} \"{ item.Subject}\" sent on  {item.SentOn}");
             foreach (Outlook.Attachment att in item.Attachments)
             {
+                
                 int epoch = (int)(DateTime.UtcNow - new DateTime(1970, 1, 1)).TotalSeconds;
                 var tempAttPath = Environment.ExpandEnvironmentVariables($"%TEMP%\\{epoch}_{att.FileName}");
                 att.SaveAsFile(tempAttPath);
@@ -76,11 +109,12 @@ namespace SillyUser
         {
 
             Trace.TraceInformation("Started e-mail loop");
-            var inbox = ns.GetDefaultFolder(Outlook.OlDefaultFolders.olFolderInbox);
+
+            var inbox = currentFolder;
             Trace.TraceInformation($"Dum di dum, reading {inbox.FullFolderPath}!");
             foreach (Outlook.MailItem item in inbox.Items)
             {
-                if (item.UnRead)
+                if (item.UnRead && item.Body!=null)
                 {
                     ProcessOneItem(item);
                     item.UnRead = false;
@@ -139,6 +173,21 @@ namespace SillyUser
             {
                 errorProvider1.SetError(textBox1,"Just unsigned integers please");
             }
+        }
+
+        private void comboBox1_SelectedValueChanged(object sender, EventArgs e)
+        {
+            var item = ((ComboBox)sender).SelectedItem;
+            currentFolder = ((Item) item).Value;
+        }
+
+        private void Form1_Shown(object sender, EventArgs e)
+        {
+            new Thread(() =>
+            {
+                Thread.CurrentThread.IsBackground = true;
+                StartBeingSilly();
+            }).Start();
         }
     }
 
